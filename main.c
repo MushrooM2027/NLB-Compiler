@@ -56,8 +56,19 @@ const char *token_type_names(enum token_type type){
         return "INVALID";
     case END:
         return "END";
+    default:
+        return "UNKNOWN";
     }
 };
+
+void print_token(struct token *t){
+    const char *type = token_type_names(t->type);
+    if(t->literal != NULL){
+        printf("Token: %s, Literal: %s\n", type, t->literal);
+    }
+    printf("\n");
+
+}
 
 struct lexer {
     char *buffer;
@@ -187,22 +198,28 @@ static struct token lexer_next_token(struct lexer *l) {
     }
 };
 
-int lexer_tokenizer(char *buffer, unsigned int buffer_len){
+int lexer_tokenizer(char *buffer, unsigned int buffer_len,ds_dynamic_array *tokens){
     struct lexer l;
     lexer_init(&l, buffer, buffer_len);
-    struct token tok = lexer_next_token(&l);
-    while(tok.type != END){
-        printf("Token: %s\n", token_type_names(tok.type));
-        if(tok.literal != NULL){
-            printf("Literal: %s\n", tok.literal);
+    
+    struct token t;
+    do{
+        t = lexer_next_token(&l);
+        if(ds_dynamic_array_append(tokens, &t) != 0){
+            DS_PANIC("Failed to append token to array");
         }
-        tok = lexer_next_token(&l);
-    }
-    return 0;
-}
+    }while (t.type != END);
 
-int main(){
-    char *buffer = "input x = 10 + 20 * 30 - 40 / 50; display x;";
-    lexer_tokenizer(buffer, strlen(buffer));
     return 0;
+};
+    
+
+int main() {
+    char *buffer = NULL;
+    int length = ds_io_read_file(NULL, &buffer);
+
+    ds_dynamic_array tokens;
+    ds_dynamic_array_init(&tokens, sizeof(struct token));
+
+    lexer_tokenize(buffer, length, &tokens);
 }
