@@ -1,31 +1,42 @@
-
 %{
-%define api.pure full
 #include <stdio.h>
 #include <stdlib.h>
-#include "parser.h"
-#include "lexer.h"
+#include "ast.h"
 
-void yyerror(const char *s);
 int yylex();
-int yyparse();
+void yyerror(const char *s);
 
-ast_node *root;
+ASTNode *root;
+
+int evaluate_ast(ASTNode *node);
+
+
 %}
 
+%left PLUS MINUS
+%left ASTERISK SLASH
+
 %union {
+    char *op_value;
+    struct ASTNode *node;
     int int_value;
-    char *identifier;
-    struct ast_node *node;
+    float float_value;
 }
 
-%token <int_value> INT
-%token <identifier> IDENTIFIER
-%token INPUT DISPLAY SET TO IF IS_GREATER_THAN THEN OTHERWISE REPEAT TIMES
-%token EQUAL PLUS MINUS ASTERISK SLASH
-%token END INVALID
+%token SET
+%token TO
+%token <int_value> NUMBER
+%token <float_value> FLOAT
+%token <op_value> IDENTIFIER
+%token PLUS '+'
+%token MINUS '-'
+%token ASTERISK '*'
+%token SLASH '/'
 
-%type <node> expression primary statement assignment
+
+%type <node> program statement expression term factor
+
+%start program
 
 %%
 
@@ -34,31 +45,38 @@ program:
     ;
 
 statement:
-    expression
-    | assignment
+    IDENTIFIER TO expression { 
+        $$ = new_assignment_node($1, $3);  // Store the assignment properly
+    }
+    | expression { $$ = $1; }
     ;
 
+
 expression:
-    expression PLUS primary  { $$ = new_binary_op_node($1, $3, PLUS); }
-  | expression MINUS primary { $$ = new_binary_op_node($1, $3, MINUS); }
-  | expression ASTERISK primary { $$ = new_binary_op_node($1, $3, ASTERISK); }
-  | expression SLASH primary { $$ = new_binary_op_node($1, $3, SLASH); }
-  | primary { $$ = $1; }
-;
+    expression PLUS expression { $$ = new_binary_op_node($1, $3, '+', ($1->is_float || $3->is_float)); }
+    | expression MINUS expression { $$ = new_binary_op_node($1, $3, '-', ($1->is_float || $3->is_float)); }
+    | term { $$ = $1;}
+    ;
 
-primary:
-    INT { $$ = new_int_node($1); }
-  | IDENTIFIER { $$ = new_identifier_node($1); }
-;
+term:
+    term ASTERISK factor { $$ = new_binary_op_node($1, $3, '*', ($1->is_float || $3->is_float)); }
+    | term SLASH factor { $$ = new_binary_op_node($1, $3, '/', ($1->is_float || $3->is_float)); }
+    | factor {$$ = $1;}
+    ;
 
-assignment:
-    SET IDENTIFIER TO INT { $$ = new_assignment_node($2, $4); }
+factor:
+    NUMBER { $$ = new_number_node($1,0); }
+    | FLOAT { $$ = new_float_node($1,1);}
+    | IDENTIFIER { $$ = new_identifier_node($1); }
+    | '(' expression ')' { $$ = $2; }
     ;
 
 %%
 
 void yyerror(const char *s) {
-    fprintf(stderr, "Error: %s\n", s);
+    printf("Error: %s\n", s);
 }
 
-
+ASTNode *get_root(){
+    return root;
+}
